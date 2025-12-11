@@ -716,4 +716,165 @@ Monitor these resources:
 
 ---
 
+## Session Log: December 11, 2025 (Continued)
+
+### Major Discoveries
+
+#### 1. Fastboot Mode Successfully Entered
+
+Successfully entered fastboot mode via `adb reboot bootloader`. Device detected as fastboot:
+
+```
+1017170  fastboot
+```
+
+**Complete Fastboot Variable Dump:**
+```
+(bootloader) parallel-download-flash:yes
+(bootloader) hw-revision:10000
+(bootloader) unlocked:no
+(bootloader) off-mode-charge:1
+(bootloader) charger-screen-enabled:1
+(bootloader) battery-soc-ok:yes
+(bootloader) variant:QCS EMMC
+(bootloader) max-download-size:804282368
+(bootloader) current-slot:b
+(bootloader) slot-unbootable:a:yes
+(bootloader) slot-successful:b:yes
+(bootloader) secure:yes
+(bootloader) serialno:1017170
+(bootloader) product:icx1301
+(bootloader) kernel:uefi
+```
+
+**Key Findings:**
+- Bootloader: LOCKED (`unlocked:no`)
+- Secure Boot: YES (`secure:yes`)
+- Current slot: B (slot A marked unbootable)
+- Max download: ~767MB
+- Variant: QCS EMMC
+
+#### 2. Fastboot OEM Device Info
+
+```
+fastboot oem device-info
+(bootloader) Verity mode: true
+(bootloader) Device unlocked: false
+(bootloader) Device critical unlocked: false
+(bootloader) Charger screen enabled: true
+```
+
+#### 3. Fastboot Commands Blocked
+
+| Command | Result |
+|---------|--------|
+| `fastboot oem unlock` | FAILED: unknown command |
+| `fastboot flashing unlock` | FAILED: unknown command |
+| `fastboot oem unlock-go` | FAILED: unknown command |
+| `fastboot oem help` | FAILED: unknown command |
+| `fastboot oem get-identifier-token` | FAILED: unknown command |
+| `fastboot oem reboot-edl` | FAILED: unknown command |
+| `fastboot oem edl` | FAILED: unknown command |
+| `fastboot flashing get_unlock_ability` | FAILED: unknown command |
+
+**Sony has removed ALL unlock-related fastboot commands.**
+
+#### 4. EDL Mode Access
+
+| Method | Result |
+|--------|--------|
+| `adb reboot edl` | Ignored/Rejected - device boots normally |
+| `fastboot oem edl` | FAILED: unknown command |
+| `fastboot oem reboot-edl` | FAILED: unknown command |
+
+EDL mode cannot be entered via software commands. Hardware test point or special USB cable would be required.
+
+#### 5. Qualcomm Services Re-Enabled
+
+Successfully reinstalled `com.qti.diagservices`:
+
+```bash
+pm install-existing com.qti.diagservices
+# Result: Package com.qti.diagservices installed for user: 0
+```
+
+**Service Details:**
+- Package: `com.qti.diagservices`
+- UID: 1000 (system)
+- Path: `/system_ext/app/QTIDiagServices/QTIDiagServices.apk`
+- Flags: SYSTEM, PERSISTENT
+- Permission: `RECEIVE_BOOT_COMPLETED`
+
+**DIAG Device Node:**
+```
+/dev/diag: crw-rw---- system vendor_qti_diag 241,0
+```
+
+#### 6. ADB Backup Enabled
+
+Successfully enabled ADB backup setting:
+```bash
+settings put global adb_backup_enabled 1  # Success
+settings get global adb_backup_enabled    # Returns: 1
+```
+
+#### 7. DPM Service Analysis
+
+Found Qualcomm DPM (Data Profile Manager) service:
+- Service: `dpmservice`
+- Interface: `com.qti.dpm.IDpmService`
+- UID: 1001 (phone/radio)
+- Has custom permission: `com.qualcomm.permission.READPROC`
+
+```bash
+service call dpmservice 1
+# Result: Parcel(00000000 000003e8 '........')  # Service responds!
+```
+
+#### 8. Full Partition Layout
+
+Complete A/B partition scheme confirmed:
+```
+boot_a/boot_b     - 96MB each
+recovery_a/b      - 96MB each
+dtbo_a/b          - 24MB each
+vbmeta_a/b        - 64KB each
+super             - 4GB (system/vendor/product)
+userdata          - ~21GB (f2fs)
+```
+
+### Updated Attack Vector Status
+
+| Vector | Status | Notes |
+|--------|--------|-------|
+| Fastboot OEM Unlock | ❌ BLOCKED | Command removed by Sony |
+| Fastboot Flashing Unlock | ❌ BLOCKED | Command removed |
+| EDL via ADB | ❌ BLOCKED | Command ignored |
+| EDL via Fastboot | ❌ BLOCKED | Command removed |
+| DIAG Mode USB | ❌ BLOCKED | Cannot enable via setprop |
+| DSU Boot | ❌ BLOCKED | AVB rejects unsigned GSI |
+| QTIDiagServices | ✅ ENABLED | Running as system UID |
+| ADB Backup | ✅ ENABLED | May allow app data extraction |
+| DPM Service | ✅ RESPONSIVE | Accepts service calls |
+
+### Sony's Bootloader Lockdown Summary
+
+Sony has implemented an extremely restrictive bootloader:
+
+1. **Removed standard unlock commands** - Both `oem unlock` and `flashing unlock` return "unknown command"
+2. **Removed EDL entry** - No software path to Emergency Download Mode
+3. **No Sony unlock service** - Unlike Xperia phones, Walkmans have no online unlock portal
+4. **OEM unlock flag meaningless** - `sys.oem_unlock_allowed=1` but no mechanism to use it
+
+This is one of the most locked-down Android bootloaders encountered.
+
+### Remaining Paths
+
+1. **Hardware EDL** - Need to find test points on NW-A306 PCB
+2. **USB Exploit (CVE-2024-53197)** - Still viable, needs attack hardware
+3. **System App Vulnerability** - Research Sony/Qualcomm apps for exploits
+4. **Community Research** - Monitor XDA/Head-Fi for breakthroughs
+
+---
+
 *Document will be updated as progress continues.*

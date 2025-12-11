@@ -5,6 +5,108 @@
 
 ---
 
+## Table of Contents
+
+1. [Device Information](#device-information)
+2. [Goal](#goal)
+3. [What Has Been Completed](#what-has-been-completed)
+   - [Phase 1: Termux Microserver Setup](#phase-1-termux-microserver-setup-completed)
+4. [Attack Vectors Attempted](#attack-vectors-attempted)
+   - [STEP 1: EDL/Fastboot Mode Access](#step-1-edlfastboot-mode-access-completed)
+   - [STEP 2: EDL Partition Dump](#step-2-edl-partition-dump-blocked)
+   - [STEP 3: Kernel Exploitation](#step-3-kernel-exploitation-in-progress)
+   - [STEP 3a: Recovery/Sideload Mode Testing](#step-3a-recoverysideload-mode-testing-completed)
+   - [STEP 3b: USB Exploit Research](#step-3b-usb-exploit-research-pending)
+   - [STEP 3c: DSU Testing](#step-3c-dsu-dynamic-system-update-testing-new-discovery)
+   - [STEP 3d: Firmware Update Interception](#step-3d-firmware-update-interception-in-progress)
+5. [Partition Map](#partition-map)
+6. [Files Extracted](#files-extracted)
+7. [Current Blockers](#current-blockers)
+8. [Next Steps to Try](#next-steps-to-try)
+9. [Related Resources](#related-resources)
+10. [Commands Reference](#commands-reference)
+11. [Summary of Attack Vectors Tried](#summary-of-attack-vectors-tried)
+12. [Current Best Paths Forward](#current-best-paths-forward)
+13. [CVE Research Summary](#cve-research-summary)
+14. [USB Exploit Research (Cellebrite Chain)](#usb-exploit-research-cellebrite-chain-analysis)
+15. [Can a Standard PC Be Used as USB Attack Device?](#can-a-standard-pc-be-used-as-usb-attack-device)
+16. [Hardware Recommendations](#hardware-recommendations)
+17. [Kernel/Firmware Rollback Analysis](#kernelfirmware-rollback-analysis)
+18. [Deep Dive: Software-Only Attack Vectors](#deep-dive-software-only-attack-vectors-december-2025)
+19. [Session Logs](#session-log-december-11-2025-continued)
+    - [Session: Fastboot/DIAG Discovery](#session-log-december-11-2025-continued)
+    - [Session: Attack Simulation Framework](#session-log-december-11-2025-attack-simulation-framework)
+    - [Session: Software-Only Attack Surface](#session-log-december-11-2025-software-only-attack-surface-analysis)
+20. [Project Files Reference](#project-files-reference)
+
+---
+
+## Project Files Reference
+
+### Documentation
+
+| File | Description |
+|------|-------------|
+| [`PROGRESS.md`](./PROGRESS.md) | This file - master documentation |
+| [`USB_EXPLOIT_GUIDE.md`](./USB_EXPLOIT_GUIDE.md) | CVE-2024-53197 exploitation guide |
+
+### Exploit Chain Simulation (`exploit_chain_simulation/`)
+
+| File | Description |
+|------|-------------|
+| [`usb_quirk_model.py`](./exploit_chain_simulation/usb_quirk_model.py) | Models `snd_usb_extigy_boot_quirk()` execution flow |
+| [`heap_allocator.py`](./exploit_chain_simulation/heap_allocator.py) | SLUB heap allocator simulation for exploit development |
+| [`attack_graph.py`](./exploit_chain_simulation/attack_graph.py) | Attack path visualization and graph generation |
+
+### USB Fuzzer (`usb_fuzzer/`)
+
+| File | Description |
+|------|-------------|
+| [`descriptor_templates.py`](./usb_fuzzer/descriptor_templates.py) | Base USB descriptor templates for Extigy/FastTrackPro |
+| [`mutation_engine.py`](./usb_fuzzer/mutation_engine.py) | Descriptor mutation generation engine |
+| [`extended_mutations.py`](./usb_fuzzer/extended_mutations.py) | Additional mutation strategies |
+| [`additional_mutations.py`](./usb_fuzzer/additional_mutations.py) | Extra mutation patterns |
+| [`pi_zero_harness.py`](./usb_fuzzer/pi_zero_harness.py) | Raspberry Pi Zero USB gadget harness |
+| [`facedancer_harness.py`](./usb_fuzzer/facedancer_harness.py) | Facedancer/GreatFET fuzzing harness |
+| [`descriptor_mutations.json`](./usb_fuzzer/descriptor_mutations.json) | Generated mutation templates |
+| [`extended_mutations.json`](./usb_fuzzer/extended_mutations.json) | Extended mutation set |
+| [`all_mutations.json`](./usb_fuzzer/all_mutations.json) | Complete mutation catalog (556 mutations) |
+
+### 6-Stage Exploit Workspace (`exploit_workspace/`)
+
+| File | Description |
+|------|-------------|
+| [`chain_coordinator.py`](./exploit_workspace/chain_coordinator.py) | Master exploit chain orchestrator |
+| [`chain_state.json`](./exploit_workspace/chain_state.json) | Persistent exploit state tracking |
+
+#### Stage 1: USB Enumeration (`stage1_enumeration/`)
+| [`usb_gadget.py`](./exploit_workspace/stage1_enumeration/usb_gadget.py) | USB gadget configuration for initial enumeration |
+
+#### Stage 2: Descriptor Corruption (`stage2_corruption/`)
+| [`descriptor_overflow.py`](./exploit_workspace/stage2_corruption/descriptor_overflow.py) | bNumConfigurations overflow exploitation |
+
+#### Stage 3: Crash Handling (`stage3_crash/`)
+| [`crash_handler.py`](./exploit_workspace/stage3_crash/crash_handler.py) | Kernel crash detection and analysis |
+
+#### Stage 4: Memory Leak (`stage4_leak/`)
+| [`memory_leak.py`](./exploit_workspace/stage4_leak/memory_leak.py) | KASLR bypass via memory leak |
+
+#### Stage 5: ROP Chain (`stage5_rop/`)
+| [`rop_chain.py`](./exploit_workspace/stage5_rop/rop_chain.py) | ARM64 ROP chain construction for privilege escalation |
+
+#### Stage 6: Payload (`stage6_payload/`)
+| [`payload_builder.py`](./exploit_workspace/stage6_payload/payload_builder.py) | Post-exploitation payload generation |
+
+### Extracted APKs (`C:\tmp\`)
+
+| File | Description |
+|------|-------------|
+| `QTIDiagServices.apk` | Qualcomm DIAG services (UID 1000, system) |
+| `automagic.apk` | Sony system updater |
+| `OemSetup.apk` | Sony OEM setup wizard |
+
+---
+
 ## Device Information
 
 | Property | Value |

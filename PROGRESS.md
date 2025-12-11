@@ -405,6 +405,7 @@ The Walkman kernel (4.19.157) is older than the patched version (4.19.325) for C
 
 - **Facedancer** or **GreatFET** - USB device emulator ($50-150)
 - **Raspberry Pi Zero** - Alternative for USB gadget mode (~$15)
+- **Rooted Android Phone** - Free if you have one with ConfigFS support
 - **USB-C OTG adapter** - To connect to Walkman
 
 ### Potential Attack Path for Walkman
@@ -422,6 +423,167 @@ Since CVE-2024-53104 (UVC) is not applicable (driver not compiled), we need to:
 2. Create USB Audio device emulator with malformed descriptors
 3. Test against Walkman's kernel 4.19.157
 4. If successful, dump boot partition and flash custom kernel
+
+---
+
+## Can a Standard PC Be Used as USB Attack Device?
+
+### Short Answer: NO (for most PCs)
+
+Standard desktop PCs only have USB **Host Controllers** (xHCI). To emulate a USB device, you need a **USB Device Controller (UDC)**.
+
+### PC USB Attack Options Investigated
+
+| Method | Result | Notes |
+|--------|--------|-------|
+| Intel xDCI | ❌ AMD system - not available | Only on Intel mobile platforms |
+| Thunderbolt 4 Device Mode | ❌ JHL8540 is host-only | JHL8440 is device controller (for peripherals) |
+| WSL2 + USB/IP | ❌ Cannot emulate devices | Only forwards host USB to VM |
+| QEMU USB Emulation | ❌ Virtual only | Emulated devices connect to VM, not physical |
+| Dummy HCD | ⚠️ Local testing only | Creates virtual USB host+device pair in kernel |
+| Raw Gadget | ❌ Requires UDC hardware | Great tool but needs Pi Zero/similar |
+
+### Which PCs CAN Do USB Device Mode?
+
+1. **Intel laptops with xDCI** (hidden BIOS feature)
+   - ThinkPad X1 Carbon (requires BIOS mod)
+   - Some Intel NUCs
+   - Intel-based tablets
+
+2. **Devices with USB OTG/Dual-Role**
+   - Raspberry Pi 4 (USB-C port only)
+   - Raspberry Pi Zero/Zero W/Zero 2 W
+   - BeagleBone Black
+   - Many Android phones (with root)
+
+### Rooted Android Phone as Attack Device
+
+If you have a rooted Android phone with ConfigFS kernel support:
+
+```bash
+# Check if ConfigFS is available
+adb shell "ls /config/usb_gadget/"
+
+# With root, you can create custom USB gadgets:
+# 1. Disable existing Android USB gadget
+# 2. Create new gadget with Extigy VID:PID (0x041e:0x3000)
+# 3. Configure UAC audio function
+# 4. Connect to Walkman via OTG
+```
+
+**Tools:**
+- [USB Gadget Tool](https://github.com/tejado/android-usb-gadget) - GUI for common gadgets
+- Manual ConfigFS scripts for custom devices (audio not in GUI)
+
+### Why Desktop PCs Can't Do This
+
+Desktop motherboards (including ASUS ProArt X670E-CREATOR WIFI) use:
+- AMD USB controllers - Host mode only
+- Intel Thunderbolt (JHL8540) - Host controller, not device
+- No USB OTG/Dual-Role ports
+
+The USB specification defines two roles:
+- **Host**: Controls bus, initiates transfers (your PC)
+- **Device/Peripheral**: Responds to host (keyboard, Walkman, etc.)
+
+Desktop PCs are designed to BE hosts, not to BE devices.
+
+---
+
+## Hardware Recommendations
+
+### Budget Option: Raspberry Pi Zero W (~$15)
+- Full USB device mode support
+- WiFi for remote control from PC
+- Runs Linux with ConfigFS
+- Can emulate any USB device
+
+### If You Have: Rooted Android Phone (FREE)
+- Check for ConfigFS support: `ls /config/usb_gadget/`
+- Need kernel with USB gadget drivers
+- More complex setup than Pi Zero
+
+### Professional: GreatFET One (~$100)
+- Designed for USB security research
+- Best documentation and support
+- Works with Facedancer framework
+
+---
+
+## Kernel/Firmware Rollback Analysis
+
+### Can We Downgrade to a More Vulnerable Kernel?
+
+**Short Answer: NO - Multiple hardware protections prevent this.**
+
+### Protection Layers
+
+| Protection | Status | Impact |
+|------------|--------|--------|
+| **Bootloader Lock** | LOCKED | Cannot flash any unsigned images |
+| **AVB (Android Verified Boot)** | Active (GREEN) | Verifies cryptographic signatures on every boot |
+| **Anti-Rollback Index** | Stored in RPMB | Hardware counter prevents booting older images |
+| **Sony OEM Lock** | Command removed | No `fastboot oem unlock` available |
+
+### How Anti-Rollback Works
+
+Android stores a **rollback index** in the device's RPMB (Replay Protected Memory Block) - a tamper-resistant secure storage area in the eMMC. Each firmware update increments this counter. The bootloader refuses to boot any image with a lower rollback index, even if properly signed.
+
+```
+Current device: rollback_index = N
+Older firmware: rollback_index = N-X
+Result: BOOT BLOCKED by hardware (even with valid signature)
+```
+
+### Theoretical Bypass (Requires Unlocked Bootloader)
+
+According to XDA Forums research on bypassing rollback protection:
+
+> "In theory, a bootloader in UNLOCKED state should ignore rollback protection... Since the bootloader is unlocked, it will still accept any signature key."
+
+The method involves:
+1. Extract old firmware partition images
+2. Forge new VBMeta with current rollback index but old kernel
+3. Sign with random key (unlocked bootloader accepts any key)
+4. Flash the modified images
+
+**BUT** - This requires an **UNLOCKED bootloader**, which Sony has completely blocked on the NW-A306.
+
+### Firmware Availability
+
+Sony only provides the latest firmware version for download:
+- Official support pages only offer 3.02.01 / 3.03.01
+- No official archive of older versions (2.x, 3.00, 3.01)
+- .UPG files are encrypted and device-specific
+
+Even if an older .UPG file was found:
+1. The system updater checks rollback index
+2. Device refuses to install older versions
+3. Sony explicitly states: "The software cannot be downgraded to its previous version"
+
+### MrWalkman Custom Firmware (Not Applicable)
+
+MrWalkman creates custom firmware for older **non-Android** Walkmans:
+- A30/A40/A50 Series (Linux-based, not Android)
+- WM1A/WM1Z (Original, not M2 models)
+- ZX300 Series
+
+The NW-A306 runs **Android 14** with full Google security stack - completely different architecture. No custom firmware exists for Android-based Walkmans.
+
+### Conclusion
+
+**Kernel rollback is NOT a viable attack vector** because:
+1. Bootloader is locked (cannot flash anything)
+2. Anti-rollback counter in RPMB (hardware enforced)
+3. No older firmware files publicly available
+4. Would need root first to bypass checks (chicken-and-egg)
+
+**The USB exploit (CVE-2024-53197) remains the best path** because it attacks the **running kernel** directly, bypassing all boot-time verification.
+
+### References
+- [XDA Forums - Bypassing Rollback Protection](https://xdaforums.com/t/advanced-bypassing-rollback-protection-to-downgrade-the-os.4511501/)
+- [Sony UK - NW-A306 Downloads](https://www.sony.co.uk/electronics/support/digital-music-players-nw-nwz-a-series/nw-a306/downloads)
+- [MrWalkman Custom Firmware](https://www.mrwalkman.com/p/a30series.html) (non-Android only)
 
 ---
 

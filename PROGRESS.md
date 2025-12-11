@@ -587,4 +587,133 @@ The NW-A306 runs **Android 14** with full Google security stack - completely dif
 
 ---
 
+## Deep Dive: Software-Only Attack Vectors (December 2025)
+
+Given the constraint of using only existing PC hardware (no Raspberry Pi, Facedancer, etc.), extensive research was conducted into software-only exploitation paths.
+
+### Device Security Status
+
+| Property | Value | Impact |
+|----------|-------|--------|
+| Android Version | 14 (SDK 34) | Latest major version |
+| Security Patch | 2025-04-05 | Very recent - most CVEs patched |
+| Kernel | 4.19.157 | Older kernel, some vulnerabilities |
+| Bootloader | LOCKED | Cannot flash unsigned images |
+| OEM Unlock | Allowed but blocked | Sony removed unlock command |
+
+### CVE Analysis for Kernel 4.19
+
+| CVE | Type | Applicable? | Notes |
+|-----|------|-------------|-------|
+| CVE-2025-21756 | vsock UAF | ❌ NO | Requires kernel 6.6+ |
+| CVE-2024-46740 | Binder OOB | ⚠️ MAYBE | Patched Nov 2024, our patch is Apr 2025 |
+| CVE-2024-43047 | Qualcomm DSP | ⚠️ MAYBE | No public POC, spyware-only |
+| CVE-2024-0044 | run-as injection | ❌ NO | Patched Oct 2024, Android 12-13 only |
+| CVE-2024-31317 | Zygote injection | ❌ NO | Patched June 2024 |
+| CVE-2023-20938 | Binder UAF | ❌ NO | Kernel 5.4/5.10 only |
+| CVE-2022-20421 | Binder spin | ❌ NO | Kernel 5.4/5.10 only |
+| CVE-2019-2215 | Binder UAF | ❌ NO | Patched in kernel 4.14+ |
+
+### Framework/System CVEs
+
+| CVE | Type | Applicable? | Notes |
+|-----|------|-------------|-------|
+| CVE-2024-32896 | Framework logic | ❌ NO | Pixel-specific mitigations |
+| CVE-2024-53150 | USB subsystem | ⚠️ MAYBE | Info disclosure, part of Cellebrite chain |
+| CVE-2024-53197 | USB Audio | ✅ LIKELY | CONFIG_SND_USB_AUDIO=y, kernel 4.19 < 4.19.325 |
+
+### DSU (Dynamic System Update) Analysis
+
+**Status: NOT VIABLE**
+
+- DSU service exists (`com.android.dynsystem`)
+- `gsi_tool status` returns "normal"
+- **BUT: Locked bootloader only boots OEM-signed images**
+- Google-signed GSIs rejected (Sony is OEM, not Google)
+- Third-party GSIs require unlocked bootloader
+
+References:
+- [DSU Sideloader](https://github.com/VegaBobo/DSU-Sideloader)
+- [Android DSU Documentation](https://developer.android.com/topic/dsu)
+
+### OTA Sideload Analysis
+
+**Status: NOT VIABLE**
+
+1. **Quarkslab AOSP Bug** - Signature verification bypass exists but:
+   - Recovery has separate, more robust authentication
+   - AB OTA (used by this device) not vulnerable
+   - Google marked "Won't Fix"
+
+2. **Huawei-style ZIP Parsing** - Vendor-specific, not applicable to Sony
+
+3. **Pixel FRP Bypass** - Device-specific, Pixel only
+
+### DIAG Mode Analysis
+
+**Status: PARTIALLY AVAILABLE**
+
+```
+/dev/diag exists: crw-rw---- system vendor_qti_diag 241,0
+com.qti.diagservices: UID 1000 (system)
+```
+
+- DIAG device node exists
+- Requires `vendor_qti_diag` group membership (we don't have)
+- `setprop sys.usb.config diag,adb` blocked without root
+- Professional tools (ChimeraTool) might access without root
+
+### Sony-Specific Packages Found
+
+Potentially interesting system apps running as system UID:
+- `com.qti.diagservices` - UID 1000, DIAG access
+- `com.sony.walkman.systemupdater` - Update handling
+- `com.qualcomm.qti.qms.service.trustzoneaccess` - TZ access
+- `com.qti.dpmserviceapp` - Data Profile Manager
+
+These could be targets for confused deputy attacks if vulnerabilities exist.
+
+### Remaining Viable Paths
+
+1. **CVE-2024-53197 (USB Audio)** - Still most promising
+   - Requires USB attack hardware (Pi Zero, Facedancer, or rooted Android)
+   - Kernel 4.19.157 is vulnerable (< 4.19.325)
+   - CONFIG_SND_USB_AUDIO=y confirmed
+
+2. **CVE-2024-43047 (Qualcomm DSP)** - No public POC
+   - Used by commercial spyware
+   - Affects many Qualcomm chips including QCS2290
+   - Security patch 2025-04-05 likely includes fix
+
+3. **Zero-Day Discovery** - Last resort
+   - Fuzz Sony-specific apps for vulnerabilities
+   - Analyze `com.qti.diagservices` for exploitable bugs
+   - Research Qualcomm QCS2290-specific attack surface
+
+### Conclusion
+
+**Without additional hardware, the attack surface is extremely limited:**
+
+- All recent Framework/System CVEs are patched (2025-04-05)
+- Kernel exploits either don't apply to 4.19 or are patched
+- DSU blocked by locked bootloader
+- OTA sideload protected by recovery authentication
+- DIAG mode requires elevated privileges
+
+**The USB exploit remains the only known viable path**, but requires hardware capable of USB device mode (not available on standard desktop PCs).
+
+### Alternative: Wait for Community Research
+
+The Sony Walkman modding community may discover:
+- EDL test points for NW-A306
+- Leaked Firehose programmer for QCS2290
+- Sony-specific vulnerability in system apps
+- Bootloader unlock method
+
+Monitor these resources:
+- [XDA Forums - NW-A306](https://xdaforums.com/t/q-root-newbie-sony-walkman-nw-a306-icx1301-root-without-boot-img-or-custom-recovery.4653262/)
+- [Head-Fi - NW-A300 Series Thread](https://www.head-fi.org/threads/new-sony-walkman-nw-a300-series-android-12.966467/)
+
+---
+
 *Document will be updated as progress continues.*

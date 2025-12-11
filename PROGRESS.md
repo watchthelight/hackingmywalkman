@@ -358,10 +358,70 @@ adb shell getprop sys.usb.config  # mtp,adb
 | CVE | Type | Status | Notes |
 |-----|------|--------|-------|
 | CVE-2024-43047 | Qualcomm DSP UAF | Likely Patched | No public POC, spyware-only |
-| CVE-2024-53104 | USB Video Class | Possibly Vuln | Part of Cellebrite chain |
-| CVE-2024-53197 | USB Audio | Possibly Vuln | Requires USB attack device |
+| CVE-2024-53104 | USB Video Class | **NOT VULNERABLE** | CONFIG_USB_VIDEO not compiled |
+| CVE-2024-53197 | USB Audio | **LIKELY VULNERABLE** | CONFIG_SND_USB_AUDIO=y, kernel 4.19.157 < 4.19.325 |
+| CVE-2024-50302 | HID Multitouch | Unknown | Part of Cellebrite chain |
 | CVE-2023-20938 | Binder UAF | N/A | Only affects kernel 5.4/5.10 |
 | CVE-2019-2215 | Binder UAF | N/A | Patched in kernel 4.14+ |
+
+---
+
+## USB Exploit Research (Cellebrite Chain Analysis)
+
+### Overview
+
+Cellebrite developed a USB-based exploit chain used to unlock Android devices. The chain uses emulated USB devices to trigger kernel vulnerabilities and achieve root access.
+
+### Kernel Configuration Check
+
+```
+# UVC (Video) - NOT VULNERABLE
+CONFIG_USB_CONFIGFS_F_UVC is not set
+
+# USB Audio - VULNERABLE!
+CONFIG_SND_USB_AUDIO=y
+CONFIG_SND_USB_ICX=y  # Sony-specific!
+```
+
+The Walkman kernel (4.19.157) is older than the patched version (4.19.325) for CVE-2024-53197.
+
+### Cellebrite USB Device Chain
+
+| Device | VID:PID | CVE | Purpose |
+|--------|---------|-----|---------|
+| UVC Webcam | 04f2:b071 | CVE-2024-53104 | Memory corruption (NOT applicable) |
+| Extigy Sound Card | 041e:3000 | CVE-2024-53197 | Descriptor corruption |
+| FastTrackPro | 0763:2012 | CVE-2024-53197 | Follow-up exploitation |
+| Anton Touchpad | 1130:3101 | CVE-2024-50302 | Kernel memory leak |
+| Microsoft Mouse | 045e:076c | - | Final exploitation |
+
+### Attack Sequence
+
+1. **Memory grooming** (0-40s): HID Mouse connections
+2. **Memory corruption** (40-121s): USB Audio device descriptor manipulation
+3. **Code execution** (121-246s): Final HID connections → root shell
+
+### Hardware Required
+
+- **Facedancer** or **GreatFET** - USB device emulator ($50-150)
+- **Raspberry Pi Zero** - Alternative for USB gadget mode (~$15)
+- **USB-C OTG adapter** - To connect to Walkman
+
+### Potential Attack Path for Walkman
+
+Since CVE-2024-53104 (UVC) is not applicable (driver not compiled), we need to:
+
+1. Focus on **CVE-2024-53197** (USB Audio) - driver IS present
+2. Emulate Extigy (041e:3000) or FastTrackPro (0763:2012)
+3. Manipulate `bNumConfigurations` to trigger OOB access
+4. Chain with CVE-2024-50302 (HID) for memory leak + code exec
+
+### Next Steps
+
+1. Obtain Facedancer/GreatFET or configure Raspberry Pi Zero
+2. Create USB Audio device emulator with malformed descriptors
+3. Test against Walkman's kernel 4.19.157
+4. If successful, dump boot partition and flash custom kernel
 
 ---
 

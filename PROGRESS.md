@@ -877,4 +877,374 @@ This is one of the most locked-down Android bootloaders encountered.
 
 ---
 
+## Session Log: December 11, 2025 (Attack Simulation Framework)
+
+### Strategic Pivot: Claude Code as Attack Chain Simulator
+
+Since USB attack hardware (Pi Zero, Facedancer) is not immediately available, built comprehensive simulation and preparation infrastructure for CVE-2024-53197 exploitation.
+
+### Completed Work
+
+#### Angle 1: Full Attack Chain Simulator (COMPLETE)
+
+Created `exploit_chain_simulation/` directory with:
+
+1. **`usb_quirk_model.py`** - Models `snd_usb_extigy_boot_quirk()` execution
+   - Full state machine for exploit phases
+   - USB descriptor simulation
+   - Boot quirk detection logic
+   - OOB access calculation
+
+2. **`heap_allocator.py`** - SLUB heap allocator simulation
+   - kmalloc cache selection
+   - Slab page management
+   - Freelist tracking (LIFO)
+   - `USBHostConfigAllocator` for USB-specific allocations
+   - OOB impact analysis
+
+3. **`attack_graph.py`** - Attack path visualization
+   - Node types: entry, condition, action, vulnerability, primitive, goal
+   - Complete CVE-2024-53197 attack graph
+   - JSON and Mermaid diagram export
+
+#### Angle 2: Virtual USB Gadget Fuzzer (COMPLETE)
+
+Created `usb_fuzzer/` directory with:
+
+1. **`descriptor_templates.py`** - 230 base mutations
+   - bNumConfigurations overflow (primary CVE trigger)
+   - wMaxPacketSize corruption
+   - Endpoint count manipulation
+   - Interface alternate abuse
+   - Descriptor length mismatches
+   - Combined mutations
+
+2. **`extended_mutations.py`** - 224 additional mutations
+   - Alternative VID:PID targets (10 devices)
+   - Timing-based attacks
+   - Audio class specific mutations
+   - Cross-boundary mutations (page/slab boundaries)
+   - Rate flooding
+   - String overflow
+
+3. **`additional_mutations.py`** - 102 fine-grained mutations
+   - Complete bNumConfigurations range testing
+
+**Total: 556 mutation templates**
+
+4. **`mutation_engine.py`** - Runtime fuzzing coordination
+   - Multiple strategies: sequential, random, weighted, coverage-guided, evolutionary
+   - Crash signature generation
+   - Session management
+   - ConfigFS gadget generation
+   - Facedancer script generation
+
+5. **`pi_zero_harness.py`** - Raspberry Pi Zero deployment
+   - Full ConfigFS USB gadget management
+   - Prerequisites checking
+   - Batch mutation testing
+   - Result export
+
+6. **`facedancer_harness.py`** - GreatFET/Cynthion deployment
+   - Facedancer library integration
+   - Boot quirk detection
+   - Malicious descriptor injection
+   - Standalone script generation
+   - Simulation mode (when no hardware)
+
+#### Angle 9: Exploit Workspace Structure (COMPLETE)
+
+Created `exploit_workspace/` with 6-stage exploit chain:
+
+1. **Stage 1: Enumeration** (`stage1_enumeration/`)
+   - `usb_gadget.py` - USB device presentation
+
+2. **Stage 2: Corruption** (`stage2_corruption/`)
+   - `descriptor_overflow.py` - bNumConfigurations overflow
+
+3. **Stage 3: Crash** (`stage3_crash/`)
+   - `crash_handler.py` - Kernel crash detection and analysis
+
+4. **Stage 4: Leak** (`stage4_leak/`)
+   - `memory_leak.py` - KASLR bypass via memory leak
+
+5. **Stage 5: ROP** (`stage5_rop/`)
+   - `rop_chain.py` - ARM64 privilege escalation chain
+
+6. **Stage 6: Payload** (`stage6_payload/`)
+   - `payload_builder.py` - Post-exploitation commands
+
+7. **`chain_coordinator.py`** - Master orchestrator
+   - Full 6-stage chain execution
+   - State persistence (JSON)
+   - Resume capability
+
+### Key CVE-2024-53197 Attack Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| Target Kernel | 4.19.157 (vulnerable < 4.19.325) |
+| VID:PID | 0x041e:0x3000 (Extigy) |
+| wTotalLength Trigger | 794 (old) or 483 (new) |
+| Original bNumConfigurations | 1 |
+| Malicious bNumConfigurations | 255 |
+| usb_host_config size | 272 bytes (ARM64) |
+| OOB Access Size | 69,088 bytes |
+
+### Vulnerable Code Path
+
+```c
+snd_usb_extigy_boot_quirk()
+  → snd_usb_ctl_msg(0x10, 0x43, 0x0001, 0x000a)  // Boot quirk
+  → usb_get_descriptor()  // Re-reads descriptor
+  → usb_reset_configuration()  // Uses inflated bNumConfigurations
+  → OOB ACCESS at dev->config[N] where N >= original allocation
+```
+
+### Next Steps
+
+1. **Acquire Hardware**
+   - Raspberry Pi Zero W (~$15)
+   - OR Facedancer/GreatFET (~$100)
+   - USB-C OTG adapter
+
+2. **Deploy Fuzzing Harness**
+   - Copy `usb_fuzzer/` to attack device
+   - Run `pi_zero_harness.py --batch-critical`
+   - Monitor Walkman for crash
+
+3. **Chain with CVE-2024-50302**
+   - Full Cellebrite chain requires HID memory leak
+   - Implement additional HID device emulation
+
+4. **Post-Exploitation**
+   - Dump boot partition
+   - Extract encryption keys
+   - Prepare Linux migration
+
+### Files Created This Session
+
+```
+walkman-linux-project/
+├── exploit_chain_simulation/
+│   ├── usb_quirk_model.py         (450 lines)
+│   ├── heap_allocator.py          (510 lines)
+│   └── attack_graph.py            (500 lines)
+├── usb_fuzzer/
+│   ├── descriptor_templates.py    (800 lines)
+│   ├── extended_mutations.py      (400 lines)
+│   ├── additional_mutations.py    (60 lines)
+│   ├── mutation_engine.py         (600 lines)
+│   ├── pi_zero_harness.py         (450 lines)
+│   ├── facedancer_harness.py      (650 lines)
+│   ├── all_mutations.json         (556 mutations)
+│   └── descriptor_mutations.json  (230 mutations)
+└── exploit_workspace/
+    ├── chain_coordinator.py       (600 lines)
+    ├── chain_state.json           (session state)
+    ├── stage1_enumeration/
+    │   └── usb_gadget.py
+    ├── stage2_corruption/
+    │   └── descriptor_overflow.py
+    ├── stage3_crash/
+    │   └── crash_handler.py
+    ├── stage4_leak/
+    │   └── memory_leak.py
+    ├── stage5_rop/
+    │   └── rop_chain.py
+    └── stage6_payload/
+        └── payload_builder.py
+```
+
+### Summary
+
+Built comprehensive attack simulation infrastructure:
+- **556 USB descriptor mutations** ready for hardware testing
+- **Complete 6-stage exploit chain** framework
+- **Pi Zero and Facedancer harnesses** ready for deployment
+- **Attack graphs** documenting exploitation paths
+
+The framework is ready to execute once USB attack hardware is available.
+
+---
+
+## Session Log: December 11, 2025 (Software-Only Attack Surface Analysis)
+
+### Context
+
+Pivoted to software-only attack vectors since USB attack hardware (Pi Zero, Facedancer, etc.) is not available. Standard desktop PCs cannot emulate USB devices, so focused on ADB-accessible attack surface.
+
+### System Service Enumeration
+
+Found **243 system services** via `service list`. Key services with attack potential:
+
+| Service | Interface | Notes |
+|---------|-----------|-------|
+| `dpmservice` | `com.qti.dpm.IDpmService` | Data Profile Manager, responds to calls |
+| `vendor.perfservice` | `com.qualcomm.qti.IPerfManager` | Performance service |
+| `dynamic_system` | DSU service | Requires `MANAGE_DYNAMIC_SYSTEM` |
+| `vendor.qti.qesdsys.IQesdSys` | QTI system service | Unknown functionality |
+
+### QTI DiagServices - Critical System App
+
+**Package:** `com.qti.diagservices`
+**UID:** 1000 (SYSTEM!)
+**Path:** `/system_ext/app/QTIDiagServices/`
+
+**CRITICAL PERMISSIONS:**
+```
+android.permission.MASTER_CLEAR
+android.permission.MANAGE_DYNAMIC_SYSTEM
+android.permission.INSTALL_DYNAMIC_SYSTEM
+android.permission.MANAGE_USER_OEM_UNLOCK_STATE
+android.permission.OEM_UNLOCK_STATE
+android.permission.MANAGE_USB
+android.permission.REBOOT
+android.permission.WRITE_SECURE_SETTINGS
+android.permission.READ_LOGS
+```
+
+**Manifest Analysis:**
+- `sharedUserId="android.uid.system"` - Runs as system!
+- `android:persistent="true"` - Always running
+- `android:exported="false"` on receiver - NOT directly callable
+- Contains service `QTIDiagServices`
+
+**Exploitation Potential:** HIGH - If we could invoke this app's internal methods, we could potentially modify OEM unlock state. However, components are not exported.
+
+### DSU VerificationActivity Analysis
+
+**MAJOR FINDING:** The DSU VerificationActivity is **EXPORTED** and accepts intents from ADB:
+
+```bash
+am start -a android.os.image.action.START_INSTALL -d https://example.com/test.zip
+# Result: Activity started!
+```
+
+**Logs:**
+```
+VerificationActivity: This device is not protected by a password/pin
+VerificationActivity: Starting Installation Service
+DynamicSystemInstallationService: onStartCommand(): action=android.os.image.action.START_INSTALL
+DynamicSystemInstallationService: We are already running in DynamicSystem
+```
+
+**Analysis:** The service thinks we're "already running in DynamicSystem" - this is the error message that appears when trying to install DSU from within DSU. The `gsi_tool status` returns "running, installed, enabled" which is just indicating feature availability, not actual DSU running status.
+
+**Result:** DSU install path is NOT viable - requires `MANAGE_DYNAMIC_SYSTEM` permission for actual installation.
+
+### DPM Service Analysis
+
+**Package:** `com.qti.dpmserviceapp`
+**UID:** 1001 (phone/radio)
+**Service:** `dpmservice`
+
+**Custom Permission:** `com.qualcomm.permission.READPROC` (signature-protected)
+
+**Binder Calls:**
+```bash
+service call dpmservice 1  # Returns: Parcel(00000000 000003e8)
+service call dpmservice 2  # Returns: Parcel(00000000 00000000)
+```
+
+Service responds but without documentation of the interface, exploitation is difficult.
+
+### Content Provider Analysis
+
+**Tested Providers:**
+
+| Provider | Result |
+|----------|--------|
+| `com.qti.smq.Feedback.provider` | Permission denied - requires `com.qualcomm.qti.smq.feedback.providers.write` |
+| `jp.co.sony.threesixtyra.system.HrtfProvider` | Permission denied - requires `jp.co.sony.threesixtyra.system.permission.OBTAIN_HRTF` |
+| `content://settings/system` | ✅ ACCESSIBLE - Read system settings |
+| `content://settings/global` | ✅ ACCESSIBLE - Read/write global settings |
+| `content://settings/secure` | ✅ ACCESSIBLE - Read secure settings |
+
+### OEM Unlock Status
+
+**Finding:** Can modify `oem_unlock_allowed` setting:
+```bash
+settings put global oem_unlock_allowed 1  # Success!
+settings get global oem_unlock_allowed    # Returns: 1
+```
+
+**BUT:** The actual system property doesn't change:
+```bash
+getprop sys.oem_unlock_allowed  # Still returns: 0
+getprop ro.boot.flash.locked    # Returns: 1 (LOCKED)
+```
+
+The database setting only records user intent. Actual unlock requires:
+1. Reboot to fastboot
+2. Run `fastboot oem unlock` (which Sony has removed!)
+
+### Sony System Updater (automagic.apk)
+
+**Package:** `com.sony.walkman.systemupdater`
+**UID:** 10125 (unprivileged)
+**Permissions:**
+- `REBOOT`
+- `ACCESS_CACHE_FILESYSTEM`
+- `MANAGE_EXTERNAL_STORAGE`
+- `WRITE_MEDIA_STORAGE`
+
+**Activity:** `.ui.MainActivity` - Can be started from ADB:
+```bash
+am start -n com.sony.walkman.systemupdater/.ui.MainActivity
+```
+
+**Exploitation Potential:** LOW - App doesn't run as system, uses standard Android update mechanisms with verification.
+
+### APK Extraction Complete
+
+Extracted to `C:\tmp\`:
+- `QTIDiagServices.apk` (12KB) - Minimal, just boot receiver + service
+- `automagic.apk` (1.3MB) - System updater
+- `OemSetup.apk` (9.2MB) - Setup wizard
+
+### AVB (Android Verified Boot) Status
+
+```
+ro.boot.avb_version: 1.1
+ro.boot.vbmeta.avb_version: 1.0
+ro.boot.verifiedbootstate: green
+```
+
+**Significance:** Boot is fully verified with green state - no tampering detected, all signatures valid.
+
+### Software-Only Attack Vector Summary
+
+| Vector | Status | Notes |
+|--------|--------|-------|
+| QTIDiagServices exploitation | ❌ BLOCKED | Components not exported, can't invoke |
+| DSU install via intent | ❌ BLOCKED | Requires MANAGE_DYNAMIC_SYSTEM permission |
+| DPM service abuse | ❌ LIMITED | Responds but interface unknown |
+| Content provider injection | ❌ BLOCKED | Sony providers require special permissions |
+| Settings modification | ⚠️ PARTIAL | Can modify some globals but not system props |
+| OEM unlock via settings | ❌ BLOCKED | Setting changes but unlock command removed |
+| System updater abuse | ❌ BLOCKED | Uses standard verified update path |
+
+### Conclusion
+
+**Software-only attack surface is extremely limited:**
+
+1. All interesting system apps have `android:exported="false"` on sensitive components
+2. Content providers are protected by signature permissions
+3. Binder services require calling credentials we don't have
+4. Settings database changes don't translate to system property changes
+5. DSU requires permissions only system apps possess
+6. OEM unlock mechanism has been completely removed by Sony
+
+**The USB exploit (CVE-2024-53197) remains the only known viable path**, but requires USB device-mode capable hardware.
+
+### Recommendations
+
+1. **Acquire USB attack hardware** - Raspberry Pi Zero W is cheapest option (~$15)
+2. **Monitor community** - XDA/Head-Fi for any Sony-specific discoveries
+3. **Research Qualcomm DIAG** - Professional tools (ChimeraTool, etc.) may have access without root
+4. **Hardware EDL** - Finding test points on NW-A306 PCB remains an option
+
+---
+
 *Document will be updated as progress continues.*

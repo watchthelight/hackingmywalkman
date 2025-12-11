@@ -144,14 +144,33 @@ Extracted kernel config via `/proc/config.gz`. Key findings:
 
 **Challenge:** Security patch level is 2025-04-05 (very recent), meaning most known CVEs are patched.
 
-### STEP 3a: USB Exploit Research (PENDING)
+### STEP 3a: Recovery/Sideload Mode Testing (COMPLETED)
+
+Successfully entered sideload mode:
+```bash
+adb reboot sideload  # Works!
+```
+
+**Findings:**
+- Device shows as `sideload` mode in ADB
+- Shell access is disabled in sideload mode (`error: closed`)
+- Only accepts `adb sideload <file.zip>` commands
+- **POTENTIAL VECTOR:** Could craft malicious OTA if we understand the signing requirements
+
+**Output:**
+```
+List of devices attached
+1017170                sideload product:icx1301_002 model:NW_A300Series device:icx1301
+```
+
+### STEP 3b: USB Exploit Research (PENDING)
 
 CVE-2024-53104 and CVE-2024-53197 are USB-based attacks that could work:
 - Requires crafting malicious USB device descriptors
 - Part of Cellebrite exploit chain
 - May still work if not patched
 
-### STEP 3b: Firmware Update Interception (IN PROGRESS)
+### STEP 3c: Firmware Update Interception (IN PROGRESS)
 
 #### System Updater Analysis
 

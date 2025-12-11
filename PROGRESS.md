@@ -350,7 +350,18 @@ adb shell getprop sys.usb.config  # mtp,adb
 1. **Hardware EDL Access** - Need to find test points or use USB-C EDL cable
 2. **USB Exploits (CVE-2024-53104/53197)** - Requires building malicious USB device
 3. **Signed GSI via DSU** - Would work if Google GSI keys are present
-4. **Wait for Community** - Someone may find a bootloader unlock method
+4. **CVE-2024-43047 DSP Exploit** - No public POC, likely patched (2025-04-05)
+5. **Wait for Community** - Someone may find a bootloader unlock method
+
+## CVE Research Summary
+
+| CVE | Type | Status | Notes |
+|-----|------|--------|-------|
+| CVE-2024-43047 | Qualcomm DSP UAF | Likely Patched | No public POC, spyware-only |
+| CVE-2024-53104 | USB Video Class | Possibly Vuln | Part of Cellebrite chain |
+| CVE-2024-53197 | USB Audio | Possibly Vuln | Requires USB attack device |
+| CVE-2023-20938 | Binder UAF | N/A | Only affects kernel 5.4/5.10 |
+| CVE-2019-2215 | Binder UAF | N/A | Patched in kernel 4.14+ |
 
 ---
 

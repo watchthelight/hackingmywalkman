@@ -170,7 +170,36 @@ CVE-2024-53104 and CVE-2024-53197 are USB-based attacks that could work:
 - Part of Cellebrite exploit chain
 - May still work if not patched
 
-### STEP 3c: Firmware Update Interception (IN PROGRESS)
+### STEP 3c: DSU (Dynamic System Update) Testing (NEW DISCOVERY!)
+
+**MAJOR FINDING:** Device has DSU (Dynamic System Update) support!
+
+```bash
+# GSI tool exists and is functional
+adb shell gsi_tool status  # Returns: "normal"
+
+# DSU installer can be launched
+adb shell am start -a android.os.image.action.START_INSTALL  # Works!
+```
+
+**DSU Service Details:**
+- Package: `com.android.dynsystem`
+- Has `INSTALL_DYNAMIC_SYSTEM` permission
+- Has `MANAGE_DYNAMIC_SYSTEM` permission
+- Has `READ_OEM_UNLOCK_STATE` permission
+- Runs as system UID (1000)
+
+**The Challenge:**
+- DSU requires signed GSI images to boot on locked bootloader
+- Need Google-signed GSI or OEM developer keys in ramdisk
+- AVB version 1.1 in use
+
+**Potential Vector:**
+- If device includes Google's developer GSI AVB keys, could boot a signed GSI
+- From GSI, could potentially dump boot partition and gain root
+- Need to test if Google's official GSI will boot
+
+### STEP 3d: Firmware Update Interception (IN PROGRESS)
 
 #### System Updater Analysis
 

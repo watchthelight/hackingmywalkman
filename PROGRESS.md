@@ -333,4 +333,25 @@ adb shell getprop sys.usb.config  # mtp,adb
 
 ---
 
+## Summary of Attack Vectors Tried
+
+| Vector | Status | Result |
+|--------|--------|--------|
+| Fastboot OEM Unlock | BLOCKED | Sony removed command |
+| EDL Mode | BLOCKED | Cannot enter via ADB, no test points |
+| Kernel CVEs | BLOCKED | 2025-04-05 patches, most CVEs fixed |
+| Recovery Sideload | AVAILABLE | Can sideload, but needs signed OTA |
+| DSU/GSI | AVAILABLE | Service exists, but needs unlocked bootloader for unsigned GSI |
+| DIAG Mode | LIMITED | Device exists but restricted |
+| Firmware Downgrade | UNKNOWN | Updates encrypted in .UPG format |
+
+## Current Best Paths Forward
+
+1. **Hardware EDL Access** - Need to find test points or use USB-C EDL cable
+2. **USB Exploits (CVE-2024-53104/53197)** - Requires building malicious USB device
+3. **Signed GSI via DSU** - Would work if Google GSI keys are present
+4. **Wait for Community** - Someone may find a bootloader unlock method
+
+---
+
 *Document will be updated as progress continues.*
